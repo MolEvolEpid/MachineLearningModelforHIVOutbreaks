@@ -1,22 +1,29 @@
 import argparse
 import os
 import numpy as np
-from Models import HIV6O_c as model #pylint: disable=no-name-in-module
+from Models import HIV4O_c as model #pylint: disable=no-name-in-module
 from Structures import ModelGeometry, PairMat, CompilerParameters, NNModel, TrainingParameters #pylint: disable=import-error
 from datetime import datetime
 
+# First we define an argument parser so we can use this as the command line utility
 parser = argparse.ArgumentParser(description='Accepts paths to validation and training data')
+
 # The first argument of the argparser should be a path to the validation data
 parser.add_argument('--test', required=True, dest='testing_list')
+
 # Accept a list of training files
 parser.add_argument('--train', required=True, nargs='+', dest='training_list')
+
+# Specify the choice of ordering to apply
 parser.add_argument('--ordering', required=True, dest='ordering', choices=['OLO', 'HC', 'None'])
+
+# Now parse the args into the namespace
 args = parser.parse_args()
 
-datums = [PairMat(data, method=args.ordering) for data in args.training_list]  # Make data files
+datums = [PairMat(data, method=args.ordering) for data in args.training_list]  # Import the training data
 nSamples = datums[0].pairwise_mats.shape[1]
-test_data = PairMat(args.testing_list, method=args.ordering)  # [PairMat(test) for test in args.testing_list]  # Make test files
-geo = ModelGeometry(datums[0])
+test_data = PairMat(args.testing_list, method=args.ordering)  # Import the test data
+geo = ModelGeometry(datums[0])   # pass in a
 print('Begin making models')
 compiler_params = CompilerParameters()  # we might not want the default options, set them now
 compiler_params.loss = 'categorical_crossentropy'
@@ -49,9 +56,9 @@ for index in range(len(args.training_list)):
     print('completed training model from: ' + str(index))
     model_dir_name = 'HIV_1x3-prod-'+str(nSamples)+'/'+str(args.ordering)  # save directory hard-coded here
     try:
-        os.makedirs('~' + os.path.realpath(os.path.dirname(__file__) + '/../Models/'+model_dir_name+'/'))
+        os.makedirs('~' + os.path.realpath(os.path.dirname(__file__) + '/../Model/'+model_dir_name+'/'))
     except OSError: # dir already exists - notify user and continue
-        print('~' + os.path.realpath(os.path.dirname(__file__) + '/../Models/'+model_dir_name+'/'))
+        print('~' + os.path.realpath(os.path.dirname(__file__) + '/../Model/'+model_dir_name+'/'))
         print('Caught OSError, dir already exists')
 
     filename = '/P-' + str(index) + '-time-' + dt_string
