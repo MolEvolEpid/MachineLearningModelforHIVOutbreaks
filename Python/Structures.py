@@ -143,9 +143,9 @@ class NNModel(object):
 class TrainingParameters(object):
     """Store the hyper-parameters for training for a model"""
 
-    def __init__(self):
-        self.epoch = 10
-        self.batch_size = 64
+    def __init__(self, epoch=10, batch_size=64):
+        self.epoch = epoch
+        self.batch_size = batch_size
         self.randomize = True
         self.validation_steps = 300
 
