@@ -263,7 +263,7 @@ class MultipleModel(object):
         print('values is')
         print(values)
         if return_total:
-            return (np.sum(values), len(values))
+            return np.sum(values), len(values)
         else:
             return np.sum(values) / len(values)
 

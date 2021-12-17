@@ -8,7 +8,6 @@ from copy import deepcopy
 from matplotlib.colors import ListedColormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-
 # Provide some custom colors to the namespace for plotting
 activity_colors = ListedColormap(['lightcoral', 'sandybrown', 'white', 'firebrick', 'black'])
 colors_ = ['lightcoral', 'sandybrown', 'firebrick', 'black']
@@ -19,7 +18,11 @@ class TimeSeries(object):
         """
         class to interface with user and handle many ReadData objects.
         Requires `self.initialized == True` to access most methods.
+        Set scale_factor here to apply a rescaling correction to all sequences.
+        Intended for adjusting after sequence distance normalizations to obtain expected mutation counts instead of
+        frequencies.
         """
+
         self.initialized = False
         self.files = None
         self.data = None
@@ -34,8 +37,7 @@ class TimeSeries(object):
     def load_series_from_dir(self, directory, splitchar='-'):
         """ Load in all time series from directory.
         Optional splitchar determines which chars to split to get idx from file name.
-        First
-        Under default behavior:
+
         good filenames:
         `DataFile-1.mat`
         `MajorEpiSample-01-EU.eps`
@@ -45,8 +47,8 @@ class TimeSeries(object):
         `dataFile-12.big.mat` no idx recovered,
 
         Args:
-            directory:
-            splitchar:
+            directory (str): A valid directory path containing only data files.
+            splitchar: The separator character isolating the numeric index string.
 
         Returns:
 
@@ -89,14 +91,21 @@ class TimeSeries(object):
     def evaluate(self, model, window_size, choice_method, cluster_method='None', second_clustering_method='None'):
         """ Evaluate the time series sequence of images.
 
+        Provide a model and set of hyperparameters (window size, sort method, grouping method) and returns a
+        prediction for each piece of data. Details of the predict are handled by the data object.
+
         Args:
-            model:
-            window_size:
-            choice_method:
-            cluster_method:
-            second_clustering_method:
+            model: Callable with `predict` method.Passed through to data predict call.
+            window_size (int): Passed through to data predict call. Should match with the model input shape.
+            choice_method (str): Passed through to data predict call.
+            cluster_method (str): Passed through to data predict call.
+            second_clustering_method (str): Passed through to data predict call.
 
         Returns:
+            List[int]: The predictions for each image
+            List[int]: Assigned labels for each image
+            List[np.ArrayLike]: Map between arrival order and new sort order. Defines clusters
+
 
         """
         preds_list = []
@@ -125,13 +134,18 @@ class TimeSeries(object):
 
 
 def trace_history(history, idx):
-    """ Determine all labels applied to an individual idx through time
+    """ Determine all labels applied to an individual of interest (idx) through time.
+
+    Return a list of all labels applied to an individual of interest through time.
+    Search through each label dictionary and check if the individual is included there.
 
     Args:
-        history:
-        idx:
+        history (List[int]): Indexes are keyed to sample idexes. Contains a dictionary of labels.
+        idx (int): The index associated with the individual of interest.
 
     Returns:
+        List[labels]: List of labels applied. Label type deteremined by history
+        List[int]: Time indexes corresponding to samples taken.
 
     """
 
@@ -148,16 +162,32 @@ def trace_history(history, idx):
 
 def _plot_preds(preds, start=0, end=None, step=10, fig=None, ax=None, cbar=True):
     """ Generate an unlabeled plot using preds. A row is an individual, a column is a sample/time point.
+
+    A experimental utility method to visualize and debug predictions obtained from preds. Intended to be called by
+    other methods. May be removed in a future release.
+
+    Visualize the progression of an outbreak through
+    time. Horizontal axis is time-like and captures the index of outbreak slices. Vertical axis captures the state of
+    the samples. Following a single row across the visualization shows how the outbreak progression occurs around this
+    one individual and how their label changes through time.
+
+
+
+    If a figure and axis are provided, they are used.
+    If not, a new pair is constructed and returned.
+
     Args:
-        preds:
-        start:
-        end:
-        step:
-        fig:
-        ax:
-        cbar:
+        preds (List[int]): Predictions output passed through to build a predictions matrix.
+        start (int): Offset to start where the data is viewed.
+        end (int): Offset to end where the data is viewed. Default `None` shows all data
+        step (int): Step size for axis ticks.
+        fig (matplotlib figure): Optional matplotlib figure.
+        ax (matplotlib axis): Optionla Matplotlib axis.
+        cbar (bool): Draw a color bar on the figure.
 
     Returns:
+        axis: Axis with drawn plot
+        figure: Figure containing axis with plot.
 
     """
 
@@ -173,6 +203,7 @@ def _plot_preds(preds, start=0, end=None, step=10, fig=None, ax=None, cbar=True)
         yend = np.min([end, image.shape[1]])
         print([start, xend, start, yend])
         predmap = ax.imshow(image[start:xend, start:yend], cmap=hot.reversed())
+        # noinspection DuplicatedCode
         ax.set_xticks(np.arange(0, yend - start, step=step))
         ax.set_xticklabels(labels=np.arange(start, yend, step=step))
         ax.set_yticks(np.arange(0, xend - start, step=step))
@@ -186,44 +217,54 @@ def _plot_preds(preds, start=0, end=None, step=10, fig=None, ax=None, cbar=True)
 
 def plot_activity(preds, sort_map_list, label_list, window_size=2, active_length_cutoff=3, disable_inactive=True,
                   start=None, end=None, step=10, ax=None, fig=None, cbar=False, legend=True):
-    """
+    """Visualize the progression of an outbreak through time. Apply activity cutoffs based on time and similar
+    infections.
+
+    Primary visualization method. Visualize the outbreak progression. Window size should match with the window size
+    of the model.
+
+    Visualize the progression of an outbreak through time. Horizontal axis is time-like and captures the index of
+    outbreak slices. Vertical axis captures the state of the samples. Following a single row across the visualization
+    shows how the outbreak progression occurs around this one individual and how their label changes through time.
+
 
     Args:
-        preds:
-        sort_map_list:
-        label_list:
-        window_size:
-        active_length_cutoff:
-        disable_inactive:
-        start:
-        end:
-        step:
-        ax:
-        fig:
-        cbar:
-        legend:
+        preds (List[int]): Predictions output passed through to build a predictions matrix.
+        sort_map_list: Map to reorder the infections.
+        label_list (dict): Dict of labels
+        window_size (int): Window size of the model used to generate the preds
+        active_length_cutoff (int): How many years should an infection be considered active before changing the label?
+        start (int): Offset to start where the data is viewed.
+        end (int): Offset to end where the data is viewed. Default `None` shows all data
+        step (int): Step size for axis ticks.
+        fig (matplotlib figure): Optional matplotlib figure.
+        ax (matplotlib axis): Optionla Matplotlib axis.
+        cbar (bool): Draw a color bar on the figure.
+        disable_inactive (bool): Deprecated. Will be removed in a future release.
+        legend (bool): Draw a legend.
 
     Returns:
+        axis: Axis with drawn plot
+        figure: Figure containing axis with plot.
 
     """
     image = build_activity_matrix_overlay(preds=preds, sort_map_list=sort_map_list, label_list=label_list,
-                                          window_size=window_size, active_length_cutoff=active_length_cutoff,
-                                          disable_inactive=disable_inactive)
+                                          window_size=window_size, active_length_cutoff=active_length_cutoff)
 
     if ax is None or fig is None:
         fig, ax = plt.subplots()
     print(image.shape)
     cblabels = ['Reactivated outbreak', 'Inactive outbreak', 'NA', 'Active outbreak', 'Endemic']
     cblabels_ = ['Reactivated epidemic', 'Inactive epidemic', 'Active epidemic', 'Endemic']
-    cblabels__ = ['Reactivated outbreak', 'Inactive outbreak', 'Active outbreak', 'Endemic']
-    if end == None:
+    if end is None:
         # set interpolation to nearest rather than interp or use antialiasing
         predmap = ax.imshow(image, cmap=activity_colors, vmin=-3.5, vmax=1.5, interpolation='none')
-    if end is not None:
+    else:
         xend = np.min([end, image.shape[0]])
         yend = np.min([end, image.shape[1]])
         print([start, xend, start, yend])
         predmap = ax.imshow(image[start:xend, start:yend], cmap=activity_colors, interpolation='none')
+        # noinspection DuplicatedCode
         ax.set_xticks(np.arange(0, yend - start, step=step))
         ax.set_xticklabels(labels=np.arange(start, yend, step=step))
         ax.set_yticks(np.arange(0, xend - start, step=step))
@@ -245,12 +286,15 @@ def plot_activity(preds, sort_map_list, label_list, window_size=2, active_length
 
 
 def build_matrix_from_preds(preds):
-    """
+    """ Flatten a dict of predictions to a matrix. Entries not set are set to -1.
+
+    A utility method to flatten a dict to a 2d numpy array.
 
     Args:
-        preds:
+        preds (List[int]): Predictions dictionary from predict methods.
 
     Returns:
+        np.ndarray: Predictions
 
     """
     cols = len(preds)
@@ -265,15 +309,14 @@ def build_matrix_from_preds(preds):
 
 def build_activity_matrix_overlay_(preds, sort_map_list, label_list, active_length_cutoff=3,
                                    disable_inactive=True, window_size=2):
-    """
-
+    """ Deprecated. Will be removed in a future release.
     Args:
-        preds:
-        sort_map_list:
-        label_list:
-        active_length_cutoff:
-        disable_inactive:
-        window_size:
+        preds (List[int]): Predictions output passed through to build a predictions matrix.
+        sort_map_list: Map to reorder the infections.
+        label_list (dict): Dict of labels
+        active_length_cutoff (int): How many years should an infection be considered active before changing the label?
+        disable_inactive (bool): Deprecated. Will be removed in a future release.
+        window_size (int): Window size of the model used to generate the preds
 
     Returns:
 
@@ -309,17 +352,15 @@ def build_activity_matrix_overlay_(preds, sort_map_list, label_list, active_leng
     return image
 
 
-def build_activity_matrix_overlay(preds, sort_map_list, label_list, active_length_cutoff=3,
-                                  disable_inactive=True, window_size=2):
-    """
+def build_activity_matrix_overlay(preds, sort_map_list, label_list, active_length_cutoff=3, window_size=2):
+    """ Use neighbor data to modify the predictions and set inactivity statuses.
 
     Args:
-        preds:
-        sort_map_list:
-        label_list:
-        active_length_cutoff:
-        disable_inactive:
-        window_size:
+        preds (List[int]): Predictions output passed through to build a predictions matrix.
+        sort_map_list: Map to reorder the infections.
+        label_list (dict): Dict of labels
+        active_length_cutoff (int): How many years should an infection be considered active before changing the label?
+        window_size (int): Window size of the model used to generate the preds
 
     Returns:
 
@@ -351,8 +392,7 @@ def build_activity_matrix_overlay(preds, sort_map_list, label_list, active_lengt
 
 
 def get_neighbors(index, sort_list, k):
-    """
-    Given a list of sorted individuals, find `k` closest neighbors on both sides
+    """ Given a list of sorted individuals, find `k` closest neighbors on both sides.
 
     example:
     > get_neighbors(3, [2,5,0,3,4,1], 1)
@@ -361,11 +401,12 @@ def get_neighbors(index, sort_list, k):
     [2,5,0,3]
 
     Args:
-        index:
-        sort_list:
-        k:
+        index (int): The index to search around
+        sort_list (np.ndarray): 1-D index map
+        k: window size
 
     Returns:
+         np.ndarray: A subset of sort_list with the neighbors.
 
     """
     loc = (sort_list == index).nonzero()[0]  # list is unique
@@ -375,8 +416,8 @@ def get_neighbors(index, sort_list, k):
 def strip_string_to_year(strings, default_birth_year=1992):
     """ Convert a collection of strings containing years into numerical format
     Args:
-        strings:
-        default_birth_year:
+        strings: Iterable of labels
+        default_birth_year: If no year is detected, assign this year.
 
     Returns:
 

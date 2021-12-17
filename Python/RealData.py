@@ -18,8 +18,11 @@ from typing import Union
 
 class RealData(object):
     def __init__(self, source, source_type, scale_factor=1):
-        """ Import a real data dataset. keyword `source_type` indicates which values to unpack from `source_type`.
-        Source type '_dict' should not be used directly,"""
+        """ Import a dataset styled after real data. Not all fields will be populated.
+        Args:
+            source_type: One of 'real', 'synthetic', or '_dict'.
+        keyword `source_type` indicates which values to unpack from `source_type`.
+        Source type '_dict' should only be used for """
         # Always added
         self.matrices = None
 
@@ -48,9 +51,16 @@ class RealData(object):
             raise NotImplementedError(f'The source type {source_type} is not implemented')
 
     def load_real_data(self, source_file, scale_factor):
-        """
-        Real data offers limited info, 
-        :param: Scale factor, rescale matrix by factor, useful for seq length/evo-dist conversions 
+        """Real data offers limited info, we only want to load in the known fields.
+
+
+        Args:
+            source_file: String path to data `.mat` file.
+            scale_factor: rescale matrix by factor, useful for seq length/evolutionary distance conversions
+
+        Returns:
+            None
+
         """
 
         data = scio.loadmat(source_file)
@@ -86,18 +96,24 @@ class RealData(object):
             self.R0 = data['R0']
 
     def load_from_dict(self, data):
+        """ Load data from a dictionary. Useful for generating subsets from larger sets. """
         self.matrices = data['matrices']
         self.row_labels = data['row_labels']
         self.source_type = 'real'  # We got years, so real data
 
     def _real_to_dict(self):
-        """ Return a copy of the matrices and row labels"""
+        """ Return a copy of the matrices and row labels.
+
+        See `load_from_dict` method above.
+        """
         return {'matrices': self.matrices.copy(), 'row_labels': self.row_labels.copy()}
 
     def predict_by_year(self, model, window_size, choice_method, rule='forwards', matrix=1,
                         cluster_method='None', second_clustering_method='None', return_map=False):
-        """ compute predictions on data by year using model.predict() method. 
-        Returns dictionaries for predictions, year-subset source data, and sort aggregates """
+        """ Compute predictions on data by year using model.predict() method.
+        Returns dictionaries for predictions, year-subset source data, and sort aggregates
+        """
+
         data_subset, sort_dict = self.subset_by_year(min_size=window_size, rule=rule)
         pred_dict = {}
         rd_dict = {}
@@ -113,7 +129,7 @@ class RealData(object):
     def subset_by_year(self, min_size=15, rule='forwards'):
         """ generate a dict of RealData with infections sorted by year. 
         Only return images with more than `min_size` elements. Specify
-        `method=forward` to join samples that are less than min_size 
+        `rule=forward` to join samples that are less than min_size
         with the next year's sample. see `join_dict_by_size` for details on the joining.
         """
         assert type(min_size) is int
@@ -144,7 +160,12 @@ class RealData(object):
         return new_subset, sort_dict
 
     def _filter_by_year(self):
-        """ Generate a dict of infections by year"""
+        """ Generate a dict of infections by year.
+
+        A utility method for filtering the data by year. Enables predictions based on each year, if sample order is
+        not known.
+
+        """
         assert self.source_type == 'real', 'Cannot filter by year without labels present'
         years = []
         # Build a list of sample years
@@ -176,9 +197,12 @@ class RealData(object):
 
     def _visualize_matrix(self, index, cluster_method='None', preds=None, gt=None,
                           fig=None, ax=None, create_cbar=False):
-        """ plot the matrix. Options support clustering & prediction ovelays, ground truth values, and to create a new
+        """ Plot the matrix.
+
+        Options support clustering & prediction overlays, ground truth values, and to create a new
         colorbar axis or use the default constructor.
         """
+
         if ax is None and fig is None:
             fig, ax = plt.subplots(1)
         image = self._get_image(index, cluster_method=cluster_method, return_map=False)
@@ -201,17 +225,27 @@ class RealData(object):
         return fig, ax
 
     def show(self, index, cluster_method='None', second_clust_method='None', model=None, fig_obj=None,
-             create_cbar=False,
-             window_size=None, overlay_preds=False, highlight=0, choice_method='argmax', ax=None, add_gt=False):
+             create_cbar=False, window_size=None,
+             overlay_preds=False, highlight=0, choice_method='argmax', ax=None,
+             add_gt=False):
         """
-        Return a pyplot figure and axes for matrices[index] 
-        :param: cluster_method: string, method for first clustering.
-        :param: model: An object with a predict method. See predict method for this class for more information
-        :param: window_size: integer, see class predict method for more information 
-        :param: overlay_oreds: bool, add boxes to plot where pred=highlight
-        :param_ highlight: int, Model label to highlight.
-        :param: add_gt: bool, add ground-truth labels to predictive overlay.
+        Return a pyplot figure and axes for matrices[index].
+
+        Args:
+            index:
+            fig_obj:
+            second_clust_method:
+            choice_method:
+            create_cbar:
+            cluster_method: string, method for first clustering.
+            model: An object with a predict method. See predict method for this class for more information
+            window_size: integer, see class predict method for more information
+            overlay_preds: bool, add boxes to plot where pred=highlight
+            highlight: int, Model label to highlight.
+            ax (pyplot axis): Optionally attach the plot to a specified axis.
+            add_gt: bool, add ground-truth labels to predictive overlay.
         """
+
         gt = None
         preds = None
         if overlay_preds:
@@ -237,7 +271,6 @@ class RealData(object):
                  cmap_key: str = 'Set2', show_mat: bool = True):
         """ Generate a 1d line plot showing "alignment"-style predictions.
         """
-        global idx_map
         if window_sizes is None:
             window_sizes = []
         if models is None:
@@ -261,7 +294,6 @@ class RealData(object):
 
         fig, ax, heatmap = map_alignment(gt=gt, preds=preds_list, cmap_key=cmap_key, add_second_axis=show_mat)
         fig.suptitle(f'Image {index} with {self.matrices.shape[1]} Infections')
-        # plt.show()
         return fig, ax
 
     def _get_image(self, index, cluster_method='None', return_map=False):
@@ -272,7 +304,6 @@ class RealData(object):
         """
 
         dim = len(self.matrices.shape)
-        # print(dim)
         # We need to copy here to avoid side effects
         if dim == 2:
             matrix = np.expand_dims(self.matrices.copy(), 2)  # image is 2d, flat
@@ -282,7 +313,6 @@ class RealData(object):
         idx, matrix = self._sort(index=index, matrix=matrix, cluster_method=cluster_method)
 
         if return_map:
-            # print('Returning indexing map also')
             return matrix, idx
         else:
             return matrix
@@ -543,6 +573,11 @@ def map_alignment(gt, preds, cmap_key='viridis', add_second_axis=False):
     :param gt: array-like of ground truth prediction
     :param preds: list of array-like or array-like predictions    
     :param add_second_axis: bool, add a second axis on the right side. Allows for plotting source data elsewhere
+
+    Args:
+        cmap_key: color map key. Default is viridis.
+        gt: Ground Truth labels
+        add_second_axis (bool): Add a second axis to the figure.
     """
     gt_offset = 0
     if gt is not None:
