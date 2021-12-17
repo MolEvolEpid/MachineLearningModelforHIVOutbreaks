@@ -16,24 +16,24 @@ library(seriation)
 
 source(here("Utility_functions.R"))
 source(here("DataGen_HIV.R"))
-#source(here("DataGen_NS.R"))
 source(here("HIVsim.R"))
-#source(here("RapidSim.R"))
 source(here("Data_Generator_class.R"))
+
 for(val in 1:5){
   Gparams <- Data_Generator(
-    
+
     #detectable mutation rate generation
     lambda_large = -1,
     lambda_small = -4,
-    lambda_number = 1,#DONT SET TO 3
+    lambda_number = 1,
+
     #HIV unique simulation paramers
     use_linear_timesteps = FALSE,
     ts_list_in = c(0,2,10),
     ts_min = 0,
     ts_max = 10,
     ts_num = 2,
-    
+
     use_linear_RO = TRUE,
     RO_list_in = c(0,0),
     RO_min = 5,
@@ -48,7 +48,7 @@ for(val in 1:5){
     constant_s_step = TRUE,
     filenames = list()
   )#END Gparams
-  
+
   # Define simulation split/length --------
   maxsamples <- 66668
   tt_split <- .1
