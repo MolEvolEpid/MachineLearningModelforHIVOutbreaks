@@ -2,8 +2,7 @@ import argparse
 import os
 import numpy as np
 from Models import HIV4O_c as model  # pylint: disable=no-name-in-module
-from Structures import ModelGeometry, PairMat, CompilerParameters, NNModel, \
-    TrainingParameters  # pylint: disable=import-error
+from Structures import ModelGeometry, PairMat, CompilerParameters, NNModel, TrainingParameters  # pylint: disable=import-error
 from datetime import datetime
 
 # First we define an argument parser so we can use this as the command line utility
@@ -20,7 +19,7 @@ parser.add_argument('--ordering', required=True, dest='ordering', choices=['OLO'
 
 # Now parse the args into the namespace
 args = parser.parse_args()
-
+print(args)
 datums = [PairMat(data, method=args.ordering) for data in args.training_list]  # Import the training data
 nSamples = datums[0].pairwise_mats.shape[1]
 test_data = PairMat(args.testing_list, method=args.ordering)  # Import the test data
@@ -52,22 +51,23 @@ for index in range(len(args.training_list)):
                         test_pair_mat=test_data)
 
     print(f'completed training model from: {index}')
-    model_dir_name = f'HIV_1x3-prod-{nSamples}/{args.ordering}'  # save directory hard-coded here
+    model_dir_name = f'User_models/Model-{nSamples}/{args.ordering}'  # save directory hard-coded here
+    model_dir = os.path.abspath(os.sep) + os.path.realpath(os.path.dirname(__file__) + '/../Trained_models/' + model_dir_name + '/')
     try:
-        os.makedirs('~' + os.path.realpath(os.path.dirname(__file__) + '/../Model/' + model_dir_name + '/'))
+        os.makedirs(model_dir)
     except OSError:  # dir already exists - notify user and continue
-        print('~' + os.path.realpath(os.path.dirname(__file__) + '/../Model/' + model_dir_name + '/'))
+        print(model_dir)
         print('Caught OSError, dir already exists')
 
     filename = '/P-' + str(index) + '-time-' + dt_string
     print(filename)  # The actual model file name
     # "Models_tmp" is the default save directory for trained models
-    models[index].save_model(filename, prefix=f'./Models_tmp/HIV_1x3-realmodel-/Order-{args.ordering}-{nSamples}/')
+    models[index].save_model(filename, prefix=f'../Trained_models/{model_dir_name}/Order-{args.ordering}-{nSamples}/')
 
     #  Let's run out some per-label statistics
     pred_vector = models[index].predict(x=test_data.pairwise_mats)
     pred_vals = np.argmax(pred_vector, axis=1)
-    for label in range(np.amax(test_data.train.labels)):
+    for label in range(np.amax(test_data.train.labels) - 1):
         # use a boolean mask to find the index of images with the desired labels
         inds = np.where(np.argmax(test_data.train.categorical_labels, axis=1) == label, True, False)
         print(f'The selected index shape for label {label} is {inds.shape}')

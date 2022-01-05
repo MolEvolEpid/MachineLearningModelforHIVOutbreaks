@@ -289,9 +289,12 @@ generate_pd_matrix_HIV <- function(NSamples = 20,
   # for the distance from the root node.
   Nmut = 0.002 * 300 / 12 #don't change me
   NPop = floor(10^runif(1, min = 3, max = 4))
+
+  R0 = runif(1, 1.5, 5)  # override R0 value passed in
+  
   Geneologies = gen_Geneologies(NSamples, R0, NPop, 12 * totalStep) #here's the workhorse
   out = gen_trees_matrices(Geneologies, Nmut, spike_root = spike_root)
-  out = list("Matrices" = out$Matrices, "NPop" = NPop)
+  out = list("Matrices" = out$Matrices, "NPop" = NPop, "R0" = R0)
   return(out) # $Matrices
 }
 
@@ -411,7 +414,7 @@ bigloop_HIV <- function(NSamples,
       )
     }
   stopCluster(myCluster)
-  return(rebuild_named_list(biglist, "Matrices", "NPop"))
+  return(rebuild_named_list(biglist, "Matrices", "NPop", "R0"))
 
 }
 

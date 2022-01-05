@@ -117,13 +117,14 @@ class NNModel(object):
                                        steps_per_epoch=pair_mat.pairwise_mats.shape[0]//training_parameters.batch_size,
                                        verbose=2)
         else:
+            print('Proceeding to fit with testing data.')
             self.history = self.NN.fit(
                 x=self.np_generator,
                 steps_per_epoch=pair_mat.pairwise_mats.shape[0] // training_parameters.batch_size,
                 epochs=training_parameters.epoch,
                 validation_data=(test_pair_mat.pairwise_mats, test_pair_mat.train.categorical_labels),
                 callbacks=[tensorboard_callback],
-                validation_steps=test_pair_mat.pairwise_mats.shape[0] // training_parameters.batch_size, verbose=2)
+                validation_steps=test_pair_mat.pairwise_mats.shape[0] // training_parameters.batch_size, verbose=1)
 
     def save_model(self, model_name, prefix='../Model/'):
         """ Execute the save routine. A convenience method that interfaces to the core save method."""
