@@ -29,7 +29,7 @@ for(val in 1:5){
     ts_max = 10,
     ts_num = 2,
 
-    filenames = list()
+    filenames = list(),
 
     # The following are set for API intercompatability with another project
 
@@ -49,7 +49,7 @@ for(val in 1:5){
     N = 500,   # Set only for API intercompatability
     preseed_mutants = TRUE,
     
-    constant_s_step = TRUE,
+    constant_s_step = TRUE
   )#END Gparams
 
   # Define simulation split/length --------
@@ -81,13 +81,13 @@ for(val in 1:5){
     DataGen_HIV(Gparams, test_samples, itermax_test)
   }
   #We still have Gparams, all of our new file names are stored in Gparams$filenames
-    shuffle_data(Gparams$join_datasets(), prefix='', ofix='../Example_Data/Generated/TEST/W15-TEST-')
+    shuffle_data(Gparams$join_datasets(), prefix='', ofix='../Example_Data/Generated/XTESTX/W15-TEST-')
     #we already have the file extension prefix saved
   }
   #Now generate the test set
   DataGen_HIV(Hparams, train_samples, itermax_train)
   
-  shuffle_data(Hparams$join_datasets(), prefix = '', ofix='../Example_Data/Generated/TRAIN/W15-TRAIN-')
+  shuffle_data(Hparams$join_datasets(), prefix = '', ofix='../Example_Data/Generated/XTRAIN/W15-TRAIN-')
   #we already have the file extension prefix saved
 }
 # Now clean the temp files we made along the way. 

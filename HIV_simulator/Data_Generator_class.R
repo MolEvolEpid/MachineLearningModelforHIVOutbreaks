@@ -7,18 +7,18 @@ Data_Generator <- setRefClass(
   "Master_Params",
   # Fields ----------------
   fields = list(
-    use_sequential_model = "logical",
-    normalize_outputs = "logical",
+    # use_sequential_model = "logical",
+    # normalize_outputs = "logical",
 
-    #mutation between types rate parameters
-    mu_large = "numeric",
-    mu_small = "numeric",
-    mu_number = "numeric",
-
-    #Fitness penalty parameters
-    theta_large = "numeric",
-    theta_small = "numeric",
-    theta_number = "numeric",
+    # #mutation between types rate parameters
+    # mu_large = "numeric",
+    # mu_small = "numeric",
+    # mu_number = "numeric",
+    #
+    # #Fitness penalty parameters
+    # theta_large = "numeric",
+    # theta_small = "numeric",
+    # theta_number = "numeric",
 
     #detectable mutation rate generation
     lambda_large = "numeric",
@@ -26,13 +26,13 @@ Data_Generator <- setRefClass(
     lambda_number = "numeric",
 
     #Selection parameter for exp model
-    s_large = "numeric",
-    s_small = "numeric",
+    # s_large = "numeric",
+    # s_small = "numeric",
     s_number = "numeric",
     
     s_mod_number = 'numeric',
-    s_step_fixed = 'logical',
-    include_s_zero = "logical",
+    # s_step_fixed = 'logical',
+    # include_s_zero = "logical",
     #force the inclusion of s=0
 
     #HIV unique simulation paramers
@@ -50,7 +50,7 @@ Data_Generator <- setRefClass(
     
     #Generic simulation parameters
     N = "numeric",
-    NGen = "numeric",
+    # NGen = "numeric",
     NSamples = "numeric",
     preseed_mutants = "logical",
     constant_s_step = "logical",
