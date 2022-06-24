@@ -17,6 +17,9 @@ parser.add_argument('--train', required=True, nargs='+', dest='training_list')
 # Specify the choice of ordering to apply
 parser.add_argument('--ordering', required=True, dest='ordering', choices=['OLO', 'HC', 'None'])
 
+# Optional extra keyword for specifying save directory
+parser.add_argument('--savekey', required=False, dest='savekey', default='.', type=str)
+
 # Now parse the args into the namespace
 args = parser.parse_args()
 print(args)
@@ -39,7 +42,7 @@ models[0].NN.summary()
 # initialize models with correct geometry
 
 # Set training parameters
-training_parameters = TrainingParameters(epoch=50, batch_size=32)
+training_parameters = TrainingParameters(epoch=100, batch_size=32)
 
 print('Reach end of setup and allocations. Proceeding to train models')
 the_time = datetime.now()
@@ -51,7 +54,7 @@ for index in range(len(args.training_list)):
                         test_pair_mat=test_data)
 
     print(f'completed training model from: {index}')
-    model_dir_name = f'User_models/Model-{nSamples}/{args.ordering}'  # save directory hard-coded here
+    model_dir_name = f'User_models/{args.savekey}/Model-{nSamples}/{args.ordering}'  # save directory hard-coded here
     model_dir = os.path.abspath(os.sep) + os.path.realpath(os.path.dirname(__file__) + '/../Trained_models/' + model_dir_name + '/')
     try:
         os.makedirs(model_dir)
