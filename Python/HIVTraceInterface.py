@@ -5,8 +5,10 @@ from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-
-from .RealData import RealData
+try:
+    from .RealData import RealData
+except ImportError:
+    from RealData import RealData
 
 
 def distmat_to_csv(matrix: np.ndarray) -> pd.DataFrame:
@@ -27,7 +29,7 @@ def distmat_to_csv(matrix: np.ndarray) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
-def parse_wide_data(data: str = '../Example_Data/Uniform_uniform_wide/Rooted_TestData.mat') -> RealData:
+def parse_wide_data(data: str) -> RealData:
     """
     A utility function for loading data directly from the mega interface to the HIV simulator.
 
@@ -49,7 +51,7 @@ def parse_wide_data(data: str = '../Example_Data/Uniform_uniform_wide/Rooted_Tes
     return test_data
 
 
-def predict_strict(data: dict, true_labels: NDArray) -> tuple[NDArray, NDArray]:
+def predict_strict(data: dict, cluster_sizes: List[int]) -> NDArray:
     """ Use a strict prediction rule (include all found) on HIV-Trace JSON data.
 
     If a sequence is part of a predicted cluster (of any size),
@@ -59,12 +61,12 @@ def predict_strict(data: dict, true_labels: NDArray) -> tuple[NDArray, NDArray]:
 
     """
     preds = [int(ID) for ID in data['Nodes']['id']]  # predict the zeros
-    activity_preds = np.zeros_like(true_labels, dtype=bool)  # apply the r-sorting to labels
+    activity_preds = np.zeros(sum(cluster_sizes), dtype=bool)  # apply the r-sorting to labels
     activity_preds[preds] = True  # Set predictions to true
     # Get the true labels
-    outbreak_labels = true_labels == 0  # True = outbreak
+    # outbreak_labels = true_labels == 0  # True = outbreak
 
-    return outbreak_labels, activity_preds
+    return activity_preds
 
 
 def trace_clusters(data: dict, cluster_sizes: list[int]) -> Tuple[Dict[int, list], List[Dict[int, int]]]:
@@ -87,7 +89,6 @@ def trace_clusters(data: dict, cluster_sizes: list[int]) -> Tuple[Dict[int, list
     return _trace_clusters(cluster_sizes=cluster_sizes,
                            infectious_labels=infectious_ids,
                            cluster_ids=cluster_ids)
-    # pass
 
 
 def test_trace_clusters():
@@ -127,8 +128,11 @@ def extract_cluster_data(data: dict) -> Tuple[list[int], list[int]]:
     """
 
     infectious_labels = [int(ID) for ID in data['Nodes']['id']]
-    cluster_ids = data['Nodes']['cluster']['values']
-
+    try:
+        cluster_ids = data['Nodes']['cluster']['values']
+    except TypeError:
+        cluster_ids = data['Nodes']['cluster']
+        cluster_ids = list(map(lambda x: x-1, cluster_ids))
     return infectious_labels, cluster_ids
 
 
@@ -191,7 +195,7 @@ def predict_largest_k(data: dict, k: int, cluster_sizes: list[int]) -> NDArray:
             trimmed_clusters.append(list(ddict.keys()))  # all the keys we found are outbreak
             continue  # go to next position
         # Use `sorted` to order keys based on item
-        sizes = [key for key, value in sorted(ddict.items(), key=lambda item: ddict[item])]
+        sizes = [key for key, value in sorted(ddict.items(), key=lambda item: item[1])]
         trimmed_clusters.append(sizes[:k])  # checked above to ensure that this is valid slice index
 
     # Now we need to use the clustering to generate labels
