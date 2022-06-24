@@ -23,6 +23,9 @@ class RealData(object):
             source_type: One of 'real', 'synthetic', or '_dict'.
         keyword `source_type` indicates which values to unpack from `source_type`.
         Source type '_dict' should only be used for """
+        # Set of key values loaded - check for overlap before extend
+        self.loaded = set()
+
         # Always added
         self.matrices = None
 
@@ -65,8 +68,10 @@ class RealData(object):
 
         data = scio.loadmat(source_file)
         self.matrices = data['matrices']
+        self.loaded.add('matrices')
         self.matrices = self.matrices * scale_factor
         self.row_labels = data['row_labels']
+        self.loaded.add('row_labels')
 
     def load_synth_data(self, source_file):
         """
@@ -84,29 +89,67 @@ class RealData(object):
         data = scio.loadmat(source_file)
 
         self.matrices = data['matrices']
+        self.loaded.add('matrices')
         self.labels = data['labels']
-        self.shuffle = data['shuffle']
+        self.loaded.add('labels')
+        if 'shuffle' in data:
+            self.shuffle = data['shuffle']
+            self.loaded.add('shuffle')
         self.NPop = data['NPop']
-        self.cluster_size = data['cluster_size']
-        self.num_clusters = data['clusters']
-        self.times = data['times']
+        self.loaded.add('NPop')
+        if 'cluster_size' in data:
+            self.cluster_size = data['cluster_size']
+            self.loaded.add('cluster_size')
+        if 'clusters' in data:
+            self.num_clusters = data['clusters']
+            self.loaded.add('clusters')
+        if 'times' in data:
+            self.times = data['times']
+            self.loaded.add('times')
         print(data.keys())
         if 'R0' in data.keys():
             print('Adding R0')
             self.R0 = data['R0']
+            self.loaded.add('R0')
+        elif 'values' in data:
+            self.R0 = data['values'][:, 0]
+            self.loaded.add('values')
 
     def load_from_dict(self, data):
         """ Load data from a dictionary. Useful for generating subsets from larger sets. """
         self.matrices = data['matrices']
+        self.loaded.add('matrices')
         self.row_labels = data['row_labels']
+        self.loaded.add('row_labels')
         self.source_type = 'real'  # We got years, so real data
+        self.loaded.add('source_type')
+
+    def extend(self, other):
+        """ Extend self by another Realdata object with the same defined attributes. """
+        assert type(other) is type(self), 'cannot extend by a different type'
+        assert self.loaded == other.loaded, 'Both objects must have the same data fields initialized'
+        for field in self.loaded:
+            # Get data
+            attr1 = getattr(self, field)
+            attr2 = getattr(other, field)
+            # concatenate
+            attr12 = np.concatenate((attr1, attr2), axis=0)
+            # store
+            setattr(self, field, attr12)
 
     def _real_to_dict(self):
         """ Return a copy of the matrices and row labels.
 
         See `load_from_dict` method above.
         """
-        return {'matrices': self.matrices.copy(), 'row_labels': self.row_labels.copy()}
+        row_labels = self.row_labels.copy() if self.row_labels is not None else None
+        return {'matrices': self.matrices.copy(), 'row_labels': row_labels}
+
+    def __len__(self):
+        if self.matrices is not None:
+            return self.matrices.shape[0]
+        else:  # we don't have any data, length is zero
+            return 0
 
     def predict_by_year(self, model, window_size, choice_method, rule='forwards', matrix=1,
                         cluster_method='None', second_clustering_method='None', return_map=False):
@@ -385,7 +428,8 @@ class RealData(object):
                 # Loop over multiple images
                 for person in range(window_size):
                     # use idx_map to correctly assign scores
-                    scores[idx_map[im_idx + index + idx_map_second[im_idx, person]]].append(result[im_idx].astype(np.int).item(0))
+                    scores[idx_map[im_idx + index + idx_map_second[im_idx, person]]].append(
+                        result[im_idx].astype(np.int).item(0))
         person_predictions = self.compute_scores(scores, choice_method)
         if self.source_type == 'real':
             active = [self.row_labels[row_index] for row_index in range(len(self.row_labels)) if
@@ -421,15 +465,15 @@ class RealData(object):
         pred_list = list()
         label_list = list()
         for matrix_id in matrix:
-            predictions = self.predict(model=model, window_size=window_size,
-                                       choice_method=choice_method, matrix=matrix_id,
-                                       cluster_method=cluster_method)
+            predictions, idmap = self.predict(model=model, window_size=window_size,
+                                              choice_method=choice_method, matrix=matrix_id,
+                                              cluster_method=cluster_method, return_map=True)
             bool_filter = predictions != -1
-            predictions_filtered = predictions[bool_filter]
+            predictions_filtered = predictions[idmap]
             acc_vals.append(
-                np.sum(np.equal(predictions_filtered, self.labels[matrix_id, bool_filter] - 1)) / np.sum(bool_filter))
+                np.sum(np.equal(predictions_filtered, self.labels[matrix_id, idmap])) / np.sum(bool_filter))
             pred_list.append(predictions_filtered)
-            label_list.append(self.labels[matrix_id, bool_filter] - 1)
+            label_list.append(self.labels[matrix_id, idmap])
         acc_np = np.array(acc_vals)
         print(
             f'Average score: {np.mean(acc_np)}\nmax score: {np.amax(acc_np)}\nmin score: {np.amin(acc_np)}\n SD: {np.std(acc_np)}\nmedian score: {np.median(acc_np)}')
