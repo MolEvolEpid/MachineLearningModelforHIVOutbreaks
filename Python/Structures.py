@@ -100,8 +100,7 @@ class NNModel(object):
         assert type(logdirpath) is str
 
         logdir = logdirpath + datetime.now().strftime("MD%m%d_HMS%H%M%S")
-        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, histogram_freq=1, embeddings_freq=5,
-                                                              write_images=True)
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, histogram_freq=1)
 
         self.generator = tf.keras.preprocessing.image.ImageDataGenerator()
         self.np_generator = tf.keras.preprocessing.image.NumpyArrayIterator(x=pair_mat.pairwise_mats,
@@ -124,16 +123,18 @@ class NNModel(object):
                 epochs=training_parameters.epoch,
                 validation_data=(test_pair_mat.pairwise_mats, test_pair_mat.train.categorical_labels),
                 callbacks=[tensorboard_callback],
-                validation_steps=test_pair_mat.pairwise_mats.shape[0] // training_parameters.batch_size, verbose=1)
+                # validation_steps=test_pair_mat.pairwise_mats.shape[0] // training_parameters.batch_size,
+                verbose=2)
 
     def save_model(self, model_name, prefix='../Model/'):
         """ Execute the save routine. A convenience method that interfaces to the core save method."""
-        label = prefix + model_name + '.h5'
+        label = prefix + model_name # + '.h5'
+        # use updated SavedModel API rather than h5
         self.NN.save(label)
 
     def import_model(self, model_name):
         """We want to import a pre-trained model and use it"""
-        label = '../Model/' + model_name + '.h5'
+        label = '../Model/' + model_name # + '.h5'
         self.NN = tf.keras.models.load_model(label)
         self.compiled = True
 
@@ -197,7 +198,8 @@ class MultipleModel(object):
             self.filepath = self.filepath[:-1]
 
         self.file_ = [os.path.join(self.filepath, file) for file in sorted(os.listdir(self.filepath)) if
-                      os.path.isfile(os.path.join(self.filepath, file))]
+                      os.path.isdir(os.path.join(self.filepath, file))]  # potentially unsafe if target_dir does not
+        # contain models
         print(self.file_)
         if self.file_ is None:
             message = 'The file path:' + self.filepath + ' does  not contain any files'
@@ -358,13 +360,15 @@ class PairMat(object):
             self.pairwise_mats[row, :, :, 0] = self.pairwise_mats[row, order, :, 0]
             self.pairwise_mats[row, :, :, 0] = self.pairwise_mats[row, :, order, 0]
 
-    def show(self, image_id, cmap='viridis', ax=None, fig=None):
+    def show(self, image_id, cmap='viridis', ax=None, fig=None, vmax=None):
         """ Visualize a matrix from the stack of data by index."""
         if ax is None and fig is None:
             fig, ax = plt.subplots(1)
         image = np.squeeze(self.pairwise_mats[image_id, :, :, 0])
-        vmax = np.max(image)
+        if vmax is None:
+            vmax = np.max(image)
         image = np.squeeze(image)
+        print(image.shape)
         main_IM = ax.imshow(image, cmap=cmap, vmin=0, vmax=vmax)
         fig.colorbar(main_IM, ax=ax)
         return fig, ax
