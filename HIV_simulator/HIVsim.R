@@ -1,12 +1,13 @@
 library(abind)
 library(R.matlab)
 
-
+#prob_birth=R0/24 #prob_death*R0
 gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
   #prob_death=0.05
-  #prob_birth=R0/24 #prob_death*R0
+
 
   N = NPop
+
 
   Parents = matrix(0, max(totalSteps, 12) * N, 2)
 
@@ -14,7 +15,8 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
   currStep = 1
   active = c(1)
   birthStep = c(1)
-  endStep = sample(13:36, 1)
+  #endStep = rexp(rate=1/24,n=1)  # exponential model
+  endStep = sample(13:36, 1) # for uniform model
   flag = TRUE
   startstep = 1000
   while (currStep < totalSteps + startstep) {
@@ -22,7 +24,8 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
     indsRem = NULL
 
     L_active = length(active)
-    if (flag && L_active > 0.9 * N) {
+    if (flag && L_active > 0.9 * N && L_active > NSamples) {
+      print(c(L_active, NSamples))
       flag = FALSE
       startstep = currStep
     }
@@ -30,7 +33,7 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
 
     L_active = length(active)
     if (N - L_active > 0) {
-      offsprings = (currStep - birthStep < 3) * 0.4 / 3 * R0 / 0.505 + (currStep - birthStep >= 3) * 0.005 * R0 / 0.505
+      offsprings = ((currStep - birthStep) < 3) * 0.4 / 3 * R0 / 0.505 + ((currStep - birthStep) >= 3) * 0.005 * R0 / 0.505
       tot_offsprings = ceiling(min(N - L_active, sum(offsprings)))
       probs = offsprings / sum(offsprings)
 
@@ -39,13 +42,15 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
       Parents[pp:(pp + tot_offsprings - 1), 2] = currStep
       active = c(active, pp:(pp + tot_offsprings - 1))
       birthStep = c(birthStep, rep(currStep + 1, tot_offsprings))
-      endStep = c(endStep, currStep + sample(13:36, tot_offsprings, replace =
-        TRUE))
+      endStep = c(endStep, currStep +
+                    #rexp(rate=1/24, n=tot_offsprings)  # Exponential with mean 24 = 2 years
+                    sample(13:36, tot_offsprings, replace =TRUE)  # uniform with mean 2 years
+                  )
     }
-
-    indsRem = which(endStep == currStep)
+    # print(c(currStep, endStep))
+    indsRem = which(endStep <= currStep)  # remove anything we should
     len_Rem = length(indsRem)
-    if (len_Rem > 0 && len_Rem < L_active) {
+    if (len_Rem > 0 && len_Rem < L_active) {  # don't remove the final infection
       active = active[-indsRem]
       endStep = endStep[-indsRem]
       birthStep = birthStep[-indsRem]
@@ -108,7 +113,7 @@ gen_Geneologies <- function(NSamples, R0, NPop, totalSteps) {
 
 Pairwise_diff_HIV <- function(Geneology, spike_root = FALSE) {
   # Convert a geneology to a pairwise difference matrix
-  # spike_root option adds a row/column for a node at the root
+  # spike_root option adds a row and column for a node at the root
 
   M = length(Geneology[, 1]) / 2
 
@@ -231,7 +236,7 @@ HIV_sim <- function(NSamples = 20, NumRep = 3) {
       TREEs = list(NULL)
       tp = 1
       for (ii in 1:NumRep) {
-        Nmut = 0.002 * 300 / 12  # don't change me
+        Nmut = 0.0067 * 300 / 12  # don't change me  # use value from Leitner et al. 1999
         NPop = floor(10^runif(1, min = 3, max = 4)) # rand uniform, NOT run if
         Geneologies = gen_Geneologies(NSamples, R0, NPop, totalStep)
         out = gen_trees_matrices(Geneologies, Nmut)
@@ -287,11 +292,11 @@ generate_pd_matrix_HIV <- function(NSamples = 20,
                                    spike_root = FALSE) {
   # spike_root adds an extra row/column to the evolutionary pairwise distance matrix
   # for the distance from the root node.
-  Nmut = 0.002 * 300 / 12 #don't change me
+  Nmut = 0.006 * 300 / 12 #don't change me  - set at 0.002
   NPop = floor(10^runif(1, min = 3, max = 4))
 
   R0 = runif(1, 1.5, 5)  # override R0 value passed in
-  
+
   Geneologies = gen_Geneologies(NSamples, R0, NPop, 12 * totalStep) #here's the workhorse
   out = gen_trees_matrices(Geneologies, Nmut, spike_root = spike_root)
   out = list("Matrices" = out$Matrices, "NPop" = NPop, "R0" = R0)
@@ -305,7 +310,10 @@ generate_mega_pd_matrix_HIV <- function(NSamples,
                                         clusters = 3, shuffle = TRUE) {
   spike_root = TRUE
   Matrices = array(NA, dim = c(clusters, NSamples + spike_root, NSamples + spike_root))
-  totalStep_values = sample(x = c(0, 2, 10), size = clusters, prob = c(1 / 3, 1 / 3, 1 / 3), replace = TRUE)
+  #totalStep_values = sample(x = c(0, 2, 10), size = clusters, prob = c(1 / 3, 1 / 3, 1 / 3), replace = TRUE)
+  nzeros = clusters %/% 2  # integer division
+  totalStep_values = c(rep(0, nzeros), sample(x=c(2,10), size=clusters-nzeros, prob=c(1/2, 1/2), replace=TRUE))
+  print(totalStep_values)
   # print(totalStep_values)
   # generate the data:
   NPop = list()
@@ -337,7 +345,7 @@ generate_mega_pd_matrix_HIV <- function(NSamples,
     R0_vec[(1 + im_index * NSamples):((im_index + 1) * NSamples)] <- rep(R0_vals[[im_index + 1]][1], NSamples)
   }
   # sample initial  "star topology" distances
-  star_distances = sample(1:3, clusters, replace = TRUE)
+  star_distances = rep(15,  clusters)  # + sample(1:3, clusters, replace = TRUE)  # 10% of 300 = 30, place roots farther apart
   # star_distances[i] is initial distance length for branch/sim `i`
 
   # this giant mess of for loops enables C-style array striding
@@ -449,13 +457,13 @@ bigloop_HIV_mega <- function(NSamples,
       generate_mega_pd_matrix_HIV(
         NSamples = NSamples,
         R0 = R0,
-        totalStep = totalStep,
-        spike_root = TRUE,
-        clusters = 3
+        # totalStep = totalStep,
+        # spike_root = TRUE,
+        clusters = clusters
       )
     }
   stopCluster(myCluster)
-  return(rebuild_named_list(biglist, "Matrices", "NPop"))
+  return(rebuild_named_list(biglist, "matrix", "true_labels", "shuffle_order", "NPop", "R0"))
 
 }
 
@@ -474,14 +482,14 @@ perf_check_HIV <- function(x = NULL) {
 rebuild_named_list <- function(inlist, ...) {
   # Convert an ordered list accessed inlist[[i]]$label to inlist$label[[i]]
   # Assumes heterogeneity, attributes of each list index must be the same
-  # as the first element.  
+  # as the first element.
 
-  # First get the 
+  # First get the
   names_vector = names(inlist[[1]])
   newlist = vector(mode = "list", length = length(list(...)))
   names(newlist) <- names_vector
   for (index in 1:length(list(...))) {
-    newlist[[names_vector[[index]]]] <- abind(lapply(inlist, access_, names = names_vector, index = index), along = 1)
+    newlist[[names_vector[[index]]]] <- abind(lapply(inlist, access_, names = names_vector, index = index), along = -1)
   }
   return(newlist)
 }
