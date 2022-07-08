@@ -60,12 +60,20 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
     pp = pp + tot_offsprings
   }
   Samples = sample(active, NSamples, replace = FALSE)
+  if(spike_root){
+    Samples <- c(Samples, 0)  # add the root in here
+    NSamples <- NSamples + 1  # increase the number of samples
+  }
 
   Geneology <- matrix(0, 2 * NSamples, 5)
   Geneology[1:(2 * NSamples - 1), 1] <- c(1:(2 * NSamples - 1))
 
   # Taking into account of the sampling time
   Geneology[1:NSamples, 3] = currStep + rpois(NSamples, 6)
+  if(spike_root){
+    # Sample date for the initial infection is 0, no tip adjustment
+    Geneology[NSamples,3] <- 0  # starts at the origin
+  }
   nNodes = NSamples
   IDs = 1:NSamples
   pp = NSamples + 1
@@ -83,8 +91,9 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
 
       Geneology[IDs[ind], 2] = pp
       Geneology[IDs[coall], 2] = pp
-      if (Geneology[IDs[coall], 3] < Parents[Samples[ind], 2])
-        Geneology[IDs[coall], 3] = Parents[Samples[ind], 2]
+      if (!is.na(IDs[coall])) {  # Only happens when we try to backprop from the first infection
+        if (Geneology[IDs[coall], 3] < Parents[Samples[ind], 2])
+          Geneology[IDs[coall], 3] = Parents[Samples[ind], 2]
 
       IDs[coall] = pp
       Samples = Samples[-ind]
@@ -104,9 +113,9 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
   return(Geneology)
 }
 
-gen_Geneologies <- function(NSamples, R0, NPop, totalSteps) {
+gen_Geneologies <- function(NSamples, R0, NPop, totalSteps, spike_root=FALSE) {
   trees = list()
-  Geneology = gen_Geneology_exp(NSamples, R0, NPop, totalSteps)
+  Geneology = gen_Geneology_exp(NSamples, R0, NPop, totalSteps, spike_root=spike_root)
   trees[[1]] = Geneology
   return(trees)
 }
@@ -117,13 +126,13 @@ Pairwise_diff_HIV <- function(Geneology, spike_root = FALSE) {
 
   M = length(Geneology[, 1]) / 2
 
-  if (spike_root) {
-    M <- M + 1
-  }  # 1 more root node for multicluster data
+  # if (spike_root) {
+  #   M <- M + 1
+  # }  # 1 more root node for multicluster data
   mrca_mat <- matrix(0, M, M)
   pair_diff_mat <- matrix(0, M, M)
   ind_par_mat <- Geneology
-  if (spike_root) { M <- M - 1 }
+  # if (spike_root) { M <- M - 1 }
   ## Obtain an MRCA matrix
   for (k in 1:(M - 1)) {
     ancestors = rep(1e+5, M)
@@ -145,13 +154,13 @@ Pairwise_diff_HIV <- function(Geneology, spike_root = FALSE) {
       mrca_mat[l, k] <- pp
     }
   }
-  if (spike_root) {
-    oldest_node = length(Geneology[, 1]) - 1
-    M <- M + 1
-    mrca_mat[M,] = oldest_node
-    mrca_mat[, M] = oldest_node
-    mrca_mat[M, M] = 0  #
-  }
+  # if (spike_root) {
+  #   oldest_node = length(Geneology[, 1]) - 1
+  #   M <- M + 1
+  #   mrca_mat[M,] = oldest_node
+  #   mrca_mat[, M] = oldest_node
+  #   mrca_mat[M, M] = 0  #
+  # }
   # Uses MRCA matrix to sum up total mutations between any two ind.
   for (k in 1:(M - 1)) {
     for (l in (k + 1):M) {
@@ -189,7 +198,7 @@ gen_trees_matrices <- function(Geneologies, Nmuts, spike_root = FALSE) {
 
   Trees = list()
   # This uses non-type-safe addition: int + bool = int
-  Matrices = array(NA, dim = c(1, NSamples + spike_root, NSamples + spike_root))
+  Matrices = array(NA, dim = c(1, NSamples, NSamples))
 
   id = 1
   for (ii in 1:NGeneologies) {
@@ -197,6 +206,7 @@ gen_trees_matrices <- function(Geneologies, Nmuts, spike_root = FALSE) {
       Geneology = Geneologies[[ii]]
       inds = 1:(2 * NSamples - 2)
       Geneology[inds, 5] = rpois(length(inds), Geneology[inds, 4] * Nmuts)
+      # taking lambda=0 here is not a problem - R describes it as a point mass at 0
       res = Pairwise_diff_HIV(Geneology, spike_root = spike_root)
       Matrices[id, ,] = res
 
