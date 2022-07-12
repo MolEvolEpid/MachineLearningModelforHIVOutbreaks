@@ -315,8 +315,8 @@ generate_pd_matrix_HIV <- function(NSamples = 20,
   # spike_root adds an extra row/column to the evolutionary pairwise distance matrix
   # for the distance from the root node.
   Nmut = 0.006 * 300 / 12 #don't change me  - set at 0.002
-  NPop = floor(10^runif(1, min = 3, max = 4))
-
+  #NPop = floor(10^runif(1, min = 3, max = 4))
+  NPop=1000
   R0 = runif(1, 1.5, 5)  # override R0 value passed in
 
   Geneologies = gen_Geneologies(NSamples, R0, NPop, 12 * totalStep, spike_root=spike_root) #here's the workhorse
@@ -514,7 +514,7 @@ bigloop_HIV_mega <- function(NSamples,
   if (n <= 16) {
     n <- n - 1
   }  # be careful here
-  n <- min(n, 128)  # 128 is max number of threads R provides
+  n <- min(n, 120)  # 128 is max number of threads R provides
   myCluster <- makeCluster(n, type = "PSOCK") # type of cluster
   registerDoParallel(myCluster)
   trials <- seq(1, itermax)
@@ -527,7 +527,8 @@ bigloop_HIV_mega <- function(NSamples,
         "gen_Geneologies",
         "gen_trees_matrices",
         "generate_pd_matrix_HIV",
-        "generate_mega_pd_matrix_HIV"
+        "generate_mega_pd_matrix_HIV",
+        "reduce_bigmat"
       )
     ) %dopar%
     {
