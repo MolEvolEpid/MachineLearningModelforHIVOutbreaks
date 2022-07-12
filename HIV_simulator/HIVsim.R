@@ -511,6 +511,7 @@ bigloop_HIV_mega <- function(NSamples,
   if (n <= 16) {
     n <- n - 1
   }  # be careful here
+  n <- min(n, 128)  # 128 is max number of threads R provides
   myCluster <- makeCluster(n, type = "PSOCK") # type of cluster
   registerDoParallel(myCluster)
   trials <- seq(1, itermax)
