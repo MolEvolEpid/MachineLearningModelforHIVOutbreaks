@@ -503,7 +503,10 @@ bigloop_HIV <- function(NSamples,
 bigloop_HIV_mega <- function(NSamples,
                              R0,
                              totalStep,
-                             itermax, clusters) {
+                             itermax,
+                             clusters,
+                             density_subsampler=FALSE,
+                             density_level=1) {
   biglist <- list(NULL)
   library(foreach)
   library(doParallel)
@@ -527,10 +530,12 @@ bigloop_HIV_mega <- function(NSamples,
       )
     ) %dopar%
     {
-      #print(paste('iterobj count: ', toString(iterobj), sep = ' '))
+      # random_R0 = TRUE, density_subsampler=FALSE, density_level=1,
+      #                                   clusters = 3, shuffle = TRUE
       generate_mega_pd_matrix_HIV(
         NSamples = NSamples,
-        R0 = R0,
+        R0 = R0, density_subsampler = density_subsampler,
+        density_level=density_level,
         # totalStep = totalStep,
         # spike_root = TRUE,
         clusters = clusters
