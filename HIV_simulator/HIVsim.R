@@ -2,7 +2,7 @@ library(abind)
 library(R.matlab)
 
 #prob_birth=R0/24 #prob_death*R0
-gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
+gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps, spike_root=FALSE) {
   #prob_death=0.05
 
 
@@ -25,7 +25,7 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
 
     L_active = length(active)
     if (flag && L_active > 0.9 * N && L_active > NSamples) {
-      print(c(L_active, NSamples))
+      # print(c(L_active, NSamples))
       flag = FALSE
       startstep = currStep
     }
@@ -59,6 +59,17 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
     currStep = currStep + 1
     pp = pp + tot_offsprings
   }
+  # We need to have set NSamples by here
+  if (NSamples < 0){
+    # If Nsamples is a negative number, we set the number of samples
+    # as -Nsamples times the current population size.
+    print("Trying to set the number of samples dynamically")
+    # Magic key to return all
+    NSamples=length(active) * (-1) * NSamples
+    NSamples <- floor(NSamples)  # enforce type safety
+    print(c(NSamples, length(active), 0 %in% active))
+  }
+
   Samples = sample(active, NSamples, replace = FALSE)
   if(spike_root){
     Samples <- c(Samples, 0)  # add the root in here
@@ -80,9 +91,7 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
 
   while (nNodes > 1) {
     ind = which.max(Parents[Samples, 2])
-
     parent = Parents[Samples[ind], 1]
-
     coall = which(Samples == parent)
     if (length(coall) == 0) {
       Samples[ind] = parent
@@ -94,7 +103,7 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
       if (!is.na(IDs[coall])) {  # Only happens when we try to backprop from the first infection
         if (Geneology[IDs[coall], 3] < Parents[Samples[ind], 2])
           Geneology[IDs[coall], 3] = Parents[Samples[ind], 2]
-
+      }
       IDs[coall] = pp
       Samples = Samples[-ind]
       IDs = IDs[-ind]
@@ -102,10 +111,13 @@ gen_Geneology_exp <- function(NSamples, R0, NPop, totalSteps) {
       nNodes = nNodes - 1
     }
   }
-
+  print('x')
   inds = 1:(2 * NSamples - 1)
   Geneology[inds, 3] = Geneology[inds, 3] - Geneology[(2 * NSamples - 1), 3]
+  # Subtract off from the root
   Geneology[inds, 3] = max(Geneology[inds, 3]) - Geneology[inds, 3]
+  # Happens to place the root back at 0 if we spiked in the origin
+
 
   inds = 1:(2 * NSamples - 2)
   Geneology[inds, 4] = Geneology[Geneology[inds, 2], 3] - Geneology[inds, 3]
@@ -307,7 +319,7 @@ generate_pd_matrix_HIV <- function(NSamples = 20,
 
   R0 = runif(1, 1.5, 5)  # override R0 value passed in
 
-  Geneologies = gen_Geneologies(NSamples, R0, NPop, 12 * totalStep) #here's the workhorse
+  Geneologies = gen_Geneologies(NSamples, R0, NPop, 12 * totalStep, spike_root=spike_root) #here's the workhorse
   out = gen_trees_matrices(Geneologies, Nmut, spike_root = spike_root)
   out = list("Matrices" = out$Matrices, "NPop" = NPop, "R0" = R0)
   return(out) # $Matrices
@@ -315,16 +327,50 @@ generate_pd_matrix_HIV <- function(NSamples = 20,
 
 # tmp = generate_mega_pd_matrix_HIV(NSamples = cluster_sample_size, R0 = R0_default, random_R0 = randomize_R0_vals, clusters=number_of_clusters, shuffle=shuffle_in_cluster)
 
+
+reduce_bigmat <- function(oversampled_matrix, N_expected, density_level, root_position){
+  # N_expected - how many sequences to consider. Do not include the root infection
+  # density_level - float between 0 and 1. How much of the population to subsample.
+  # oversampled_matrix - matrix of full population
+
+  # Flatten down to a matrix
+  # oversampled_matrix <- adrop(oversampled_matrix, drop=1)
+  Ndata <- dim(oversampled_matrix)[2]  # how many sequences in the dataset, [# of mats, nrows, ncols]
+  # sample_size <- min(1, ceiling(density_level * Ndata))
+  sample_size <- N_expected
+  mask <- rep(TRUE, Ndata)
+  mask[Ndata] <- FALSE  # Location of root is hard coded here
+
+  sample <- sample(x=Ndata, size=1, replace=FALSE, prob=mask/sum(mask))
+  # which row/col to go to
+  # neighbors <- sample(x=nrow(oversampled_matrix), size=N, replace=FALSE, prob=mask/sum(mask))
+  # subtract 1 to not interfere with the spiked in root
+  print(oversampled_matrix[, sample, ])
+  new_order <- sort(oversampled_matrix[, sample, ], index.return=TRUE)
+  closest_k <- new_order$ix[1:N_expected]
+  print(new_order)
+  closest_k <- as.vector(append(closest_k, Ndata))  # add back in the last value, we need it
+  print(closest_k)
+  # Now subset the matrix
+  data_matrix <- oversampled_matrix[, closest_k, closest_k]
+  print(dim(data_matrix))
+  # data_matrix <- data_matrix[, , closest_k]
+
+  return(data_matrix)
+
+}
+
 generate_mega_pd_matrix_HIV <- function(NSamples,
-                                        R0, random_R0 = TRUE,
+                                        R0, random_R0 = TRUE, density_subsampler=FALSE, density_level=1,
                                         clusters = 3, shuffle = TRUE) {
   spike_root = TRUE
   Matrices = array(NA, dim = c(clusters, NSamples + spike_root, NSamples + spike_root))
-  #totalStep_values = sample(x = c(0, 2, 10), size = clusters, prob = c(1 / 3, 1 / 3, 1 / 3), replace = TRUE)
+  # One option here is to take equal amounts of each data
+  #totalStep_values = sample(x = c(0, 2, 10), size = clusters,
+  #                          prob = c(1 / 3, 1 / 3, 1 / 3), replace = TRUE)
   nzeros = clusters %/% 2  # integer division
   totalStep_values = c(rep(0, nzeros), sample(x=c(2,10), size=clusters-nzeros, prob=c(1/2, 1/2), replace=TRUE))
   print(totalStep_values)
-  # print(totalStep_values)
   # generate the data:
   NPop = list()
   R0_vals = list()
@@ -335,7 +381,25 @@ generate_mega_pd_matrix_HIV <- function(NSamples,
       R0 <- runif(1, min = 1.5, max = 5)
     }
     # print(R0)
-    tmp = generate_pd_matrix_HIV(NSamples = NSamples, R0 = R0, totalStep = totalStep_values[im_index], spike_root = TRUE)
+    if(density_subsampler){
+      NSamples_safe <- NSamples  # store me for later
+      NSamples <- -1  # status code to indicate "sample all"
+    }
+
+  root_position = NSamples + 1 # pre-compute for efficiency
+  if(density_subsampler){
+    sample_size <- -1 * density_level
+  }
+  else{
+    sample_size <- NSamples
+  }
+    tmp = generate_pd_matrix_HIV(NSamples = sample_size, R0 = R0,
+                                 totalStep = totalStep_values[im_index], spike_root = TRUE)
+    if(density_subsampler){
+      reduced_matrix = reduce_bigmat(oversampled_matrix=tmp, N_expected=NSamples_safe, root_loc = root_position)
+      Nsamples = NSamples_safe  # put the value back
+      tmp$Matrices = reduced_matrix
+    }
     Matrices[im_index, ,] = tmp$Matrices
     NPop = append(NPop, tmp$NPop)
     R0_vals = append(R0_vals, R0)
@@ -343,9 +407,9 @@ generate_mega_pd_matrix_HIV <- function(NSamples,
   true_label_vec = vector(length = NSamples * clusters)
   NPop_vec = vector(length = NSamples * clusters)
   R0_vec = vector(length = NSamples * clusters)
-  root_position = NSamples + 1 # pre-compute for efficiency
   total_samples = (clusters * NSamples)
   megatrix = matrix(nrow = total_samples, ncol = total_samples)
+
   # unpack the main diagonal
   for (im_index in 0:(clusters - 1)) {
     data_in = matrix(Matrices[im_index + 1, 1:NSamples, 1:NSamples], NSamples, NSamples)
@@ -354,7 +418,7 @@ generate_mega_pd_matrix_HIV <- function(NSamples,
     NPop_vec[(1 + im_index * NSamples):((im_index + 1) * NSamples)] <- rep(NPop[[im_index + 1]][1], NSamples)
     R0_vec[(1 + im_index * NSamples):((im_index + 1) * NSamples)] <- rep(R0_vals[[im_index + 1]][1], NSamples)
   }
-  # sample initial  "star topology" distances
+  # sample initial  "star topology" styled distances
   star_distances = rep(15,  clusters)  # + sample(1:3, clusters, replace = TRUE)  # 10% of 300 = 30, place roots farther apart
   # star_distances[i] is initial distance length for branch/sim `i`
 
