@@ -173,7 +173,7 @@ def _trace_clusters(cluster_sizes: list[int], infectious_labels: list, cluster_i
 
 def predict_largest_k(data: dict, k: int, cluster_sizes: list[int]) -> NDArray:
     """
-    Predict the lragest `k` clusters within each known outbreak as active, disregarding smaller clusters.
+    Predict the largest `k` clusters within each known outbreak as active, disregarding smaller clusters.
 
     Args:
         data: HIVTrace output
@@ -181,7 +181,7 @@ def predict_largest_k(data: dict, k: int, cluster_sizes: list[int]) -> NDArray:
         cluster_sizes: list[int] how large is each cluster
 
     Returns:
-
+        labels using the filtering rules described above
     """
 
     # Parse the dict into the correct tree structure
@@ -198,7 +198,40 @@ def predict_largest_k(data: dict, k: int, cluster_sizes: list[int]) -> NDArray:
         sizes = [key for key, value in sorted(ddict.items(), key=lambda item: item[1])]
         trimmed_clusters.append(sizes[:k])  # checked above to ensure that this is valid slice index
 
+    labels = reduce_predictions_to_labels(cluster_ids, cluster_sizes, infectious_ids, trimmed_clusters)
+
+    return labels
+
+def predict_minclustersize(data: dict, k: int, cluster_sizes: list[int]) -> NDArray:
+    """
+    Perform prediction using a minimum cluster size `k`.
+
+    Args:
+        data: HIVTrace output
+        k: Filter size for clusters to consider. Clusters of this size or larger are included.
+        cluster_sizes: list[int] how large is each cluster
+
+    Returns:
+        labels using the filtering rules described above
+    """
+
+    # Parse the dict into the correct tree structure
+    found_clusters, found_counts = trace_clusters(data=data, cluster_sizes=cluster_sizes)
+
+    trimmed_clusters = []
+    infectious_ids, cluster_ids = extract_cluster_data(data)
+
+    for ddict in found_counts:
+        sizes = [key for key, value in sorted(ddict.items(), key=lambda item: item[1]) if value  >= k]
+        trimmed_clusters.append(sizes)  # checked above to ensure that this is valid slice index
+
     # Now we need to use the clustering to generate labels
+    labels = reduce_predictions_to_labels(cluster_ids, cluster_sizes, infectious_ids, trimmed_clusters)
+
+    return labels
+
+
+def reduce_predictions_to_labels(cluster_ids, cluster_sizes, infectious_ids, trimmed_clusters):
     labels = np.zeros(sum(cluster_sizes))  # prediction labels
     left, right = 0, 0
     for cluster_index, cluster_size in enumerate(cluster_sizes):
@@ -214,7 +247,6 @@ def predict_largest_k(data: dict, k: int, cluster_sizes: list[int]) -> NDArray:
                     pass
             else:  # not predicted outbreak
                 pass
-
     return labels
 
 
