@@ -173,12 +173,12 @@ def generator_image_permutator(image, batch_size, num_swap, batches_sent=0, abs_
             batches_sent = 0  # reset the state
 
 
-def permutation_test(data, model, real_labels, batch_size=32, num_swap=2, num_im=10):
+def robust_permutation_test(data, model, real_labels, batch_size=32, num_swap=2, num_im=10):
     """
     Perform permutation robustness of num_swap elements of model using .predict method
-    with the first num_im slices from data. If there are less than num_im images, all 
-    images are processed. 
-    
+    with the first num_im slices from data. If there are less than num_im images, all
+    images are processed.
+
     Returns:
         acc_vals: Accuracy for each image
         right_imid: Images correctly initially predicted
