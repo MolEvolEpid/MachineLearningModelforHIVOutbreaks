@@ -1,6 +1,6 @@
 # Machine Learning Models for HIV Outbreaks
 
-Code from _Kupperman et al._ "A deep learning approach to real-time HIV outbreak detection using genetic data" in PLOS Comp Biol 18(10):e1010598 DOI: https://doi.org/10.1371/journal.pcbi.1010598
+Code from _Kupperman et al._ "A deep learning approach to real-time HIV outbreak detection using genetic data" in PLOS Comp Biol 2022 18(10):e1010598 DOI: https://doi.org/10.1371/journal.pcbi.1010598
 
 This repository is organized into two directories.
 
